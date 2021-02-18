@@ -104,7 +104,7 @@ void midi_init()
 					 midi_devices[midi_id].sub);
 	pclog("Opening MIDI port %s\n", portname);
 
-	if (snd_rawmidi_open(NULL, &midiout, portname, SND_RAWMIDI_SYNC) < 0)
+	if (snd_rawmidi_open(NULL, &midiout, portname, 0) < 0)
 	{
 		pclog("Failed to open MIDI\n");
 		return;
@@ -115,59 +115,15 @@ void midi_close()
 {
 	if (midiout != NULL)
 	{
+		snd_rawmidi_drain(midiout);
 		snd_rawmidi_close(midiout);
 		midiout = NULL;
 	}
 }
 
-static int midi_pos, midi_len;
-static uint8_t midi_command[4];
-static int midi_lengths[8] = {3, 3, 3, 3, 2, 2, 3, 1};
-static int midi_insysex;
-static uint8_t midi_sysex_data[1024+2];
-
 void midi_write(uint8_t val)
 {
-	//pclog("Write MIDI %02x\n", val);
-
-        if ((val & 0x80) && !(val == 0xf7 && midi_insysex))
-        {
-                midi_pos = 0;
-                midi_len = midi_lengths[(val >> 4) & 7];
-                midi_command[0] = midi_command[1] = midi_command[2] = midi_command[3] = 0;
-                if (val == 0xf0)
-                        midi_insysex = 1;
-        }
-
-        if (midi_insysex)
-        {
-                midi_sysex_data[midi_pos++] = val;
-                
-                if (val == 0xf7 || midi_pos >= 1024+2)
-		{
-/*			pclog("MIDI send sysex %i: ", midi_pos);
-			for (int i = 0; i < midi_pos; i++)
-				pclog("%02x ", midi_sysex_data[i]);
-			pclog("\n");*/
-			snd_rawmidi_write(midiout, midi_sysex_data, midi_pos);
-//			pclog("Sent sysex\n");
-			midi_insysex = 0;
-		}
-                return;
-        }
-                        
-        if (midi_len)
-        {                
-                midi_command[midi_pos] = val;
-                
-                midi_pos++;
-                
-                if (midi_pos == midi_len)
-		{
-//			pclog("MIDI send %i: %02x %02x %02x %02x\n", midi_len, midi_command[0], midi_command[1], midi_command[2], midi_command[3]);
-                        snd_rawmidi_write(midiout, midi_command, midi_len);
-		}
-        }
+	snd_rawmidi_write(midiout, &val, 1);
 }
 
 int midi_get_num_devs()
